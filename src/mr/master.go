@@ -33,13 +33,11 @@ const (
 
 type TaskStatus struct {
 	task_state TaskState
-	worker_id  int
 	start_time time.Time
 }
 
 type Master struct {
 	mtx        sync.Mutex
-	workerSeq  int  // next worker-seq to assign
 	files 		 []string  // filenames to execute at Map phase
 	taskPhase  TaskPhase
 	taskStatus []TaskStatus
@@ -107,15 +105,6 @@ func (m *Master) checkTasksStatus() {
 	}
 }
 
-// Register worker via RPC
-func (m *Master) RegisterWorker(request *RegisterRequest, reply *RegisterReply) error {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-	reply.WorkerId = m.workerSeq
-	m.workerSeq += 1
-	return nil
-}
-
 func (m *Master) registerTask(request *RequestTaskRequest, task *Task) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -127,7 +116,6 @@ func (m *Master) registerTask(request *RequestTaskRequest, task *Task) {
 
 	// Update master's status.
 	m.taskStatus[task.Seq].task_state = TaskStateRunning
-	m.taskStatus[task.Seq].worker_id = request.WorkerId
 	m.taskStatus[task.Seq].start_time = time.Now()
 }
 
@@ -206,7 +194,6 @@ func (m *Master) tickSchedule() {
 func MakeMaster(files []string, nReduce int) *Master {
 	m := Master{}
 	m.mtx = sync.Mutex{}
-	m.workerSeq = 0
 	m.files = files
 	m.nReduce = nReduce
 	m.taskPhase = MapPhase

@@ -18,7 +18,6 @@ type KeyValue struct {
 }
 
 type worker struct {
-	worker_id int  // assigned by master
 	mapf      func(string, string) []KeyValue
 	reducef   func(string, []string) string
 }
@@ -33,22 +32,12 @@ func ihash(key string) int {
 	return int(h.Sum32() & 0x7fffffff)
 }
 
-// Register worker via RPC
-func (w *worker) register() {
-	request := RegisterRequest{}
-	reply := RegisterReply{}
-	if ok := call("Master.RegisterWorker", &request, &reply); !ok {
-		log.Fatal("Request to register worker failed")
-	}
-	w.worker_id = reply.WorkerId
-}
-
 // Request task via RPC
 func (w *worker) requestTask() Task {
 	request := RequestTaskRequest{}
 	reply := RequestTaskReply{}
 	if ok := call("Master.RequestTask", &request, &reply); !ok {
-		log.Fatal("Request task failed: %+v", request)
+		log.Fatal("Request task failed")
 	}
 	return *reply.Task
 }
@@ -57,12 +46,11 @@ func (w *worker) requestTask() Task {
 func (w *worker) reportTask(task Task, completed bool) {
 	request := ReportTaskRequest{}
 	request.TaskSeq = task.Seq
-	request.WorkerId = w.worker_id
 	request.Phase = task.Phase
 	request.Completed = completed
 	reply := ReportTaskReply{}
 	if ok := call("Master.ReportTask", &request, &reply); !ok {
-		log.Fatal("Report task failed: %+v", request)
+		log.Fatal("Report task failed")
 	}
 }
 
@@ -76,9 +64,6 @@ func Worker(mapf func(string, string) []KeyValue,
 	w := worker{}
 	w.mapf = mapf
 	w.reducef = reducef
-
-	// uncomment to send the Example RPC to the master.
-	w.register()
 	w.run()
 }
 

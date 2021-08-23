@@ -9,14 +9,6 @@ package mr
 import "os"
 import "strconv"
 
-// Register worker in master
-type RegisterRequest struct {
-}
-
-type RegisterReply struct {
-	WorkerId int
-}
-
 // Worker request tasks to finish
 type RequestTaskRequest struct {
 	WorkerId int
