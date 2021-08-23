@@ -38,7 +38,7 @@ type TaskStatus struct {
 
 type Master struct {
 	mtx        sync.Mutex
-	files 		 []string  // filenames to execute at Map phase
+	files			 []string  // filenames to execute at Map phase
 	taskPhase  TaskPhase
 	taskStatus []TaskStatus
 	nReduce    int
