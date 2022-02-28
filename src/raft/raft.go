@@ -41,6 +41,32 @@ type ApplyMsg struct {
 	CommandIndex int
 }
 
+type RaftState int
+
+const (
+	kLeader = iota
+	kFollower
+	kCandidate
+)
+
+// Debug util.
+func GetRaftState(state RaftState) string {
+	switch state {
+	case kLeader:
+		return "Leader"
+	case kFollower:
+		return "Follower"
+	case kCandidate:
+		return "Candidate"
+	}
+	panic("Unexpected raft state")
+}
+
+const (
+	kMinElectionTimeoutMs = 500
+	kMaxElectionTimeoutMs = 1000
+)
+
 //
 // A Go object implementing a single Raft peer.
 //
@@ -54,7 +80,19 @@ type Raft struct {
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
 	// state a Raft server must maintain.
+	state RaftState // State for raft
 
+	// Persistent state on all servers
+	currentTerm int // latestest term server has seen
+	votedFor    int // candidate id that received vote in current term (or null if none)
+
+	// Volatile state on all servers
+	commitIndex int // index of highest log entry known to be commit
+	lastApplied int // inde of highest log entry applied to state machine
+
+	// Volatile state on leader
+	nextIndex  []int // for each server, index of the next log entry to that server
+	matchIndex []int // for each server, index of highest log entry known to be replicated on server
 }
 
 // return currentTerm and whether this server
@@ -111,6 +149,10 @@ func (rf *Raft) readPersist(data []byte) {
 //
 type RequestVoteArgs struct {
 	// Your data here (2A, 2B).
+	Term         int // candidate's term
+	CandidateId  int // candidate requesting vote
+	LastLogIndex int // index of candidate's last log entry
+	LastLogTerm  int // term of candidate's last log entry
 }
 
 //
@@ -119,6 +161,28 @@ type RequestVoteArgs struct {
 //
 type RequestVoteReply struct {
 	// Your data here (2A).
+	Term        int // current term, for candidate to update itself
+	VoteGranted bool
+}
+
+type LogEntry struct {
+	Term    int    // current term for leader
+	Command string // command to execute
+}
+
+// Invoked by leader to replicate log entries, also used as heartbeat.
+type AppendEntriesArgs struct {
+	Term         int        // leader's term
+	LeaderId     int        // so followers can redirect clients
+	PrevLogIndex int        // index of log entry immediately proceeding new ones
+	PrevLogTerm  int        // term of PrevLogIndex entry
+	Entries      []LogEntry // log entries to store (empty for heartbeat, may send more than one for efficiency)
+	LeaderCommit int        // leader's commit index
+}
+
+type AppendEntriesReply struct {
+	Term    int  // current term, for leader to update itself
+	Success bool // true if follower contained entry matching PrevLogIndex and PrevLogTerm
 }
 
 //
@@ -224,6 +288,13 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.peers = peers
 	rf.persister = persister
 	rf.me = me
+	rf.state = kCandidate
+	rf.currentTerm = 0
+	rf.votedFor = -1
+	rf.commitIndex = 0
+	rf.lastApplied = 0
+	rf.nextIndex = make([]int, len(peers))
+	rf.matchIndex = make([]int, len(peers))
 
 	// Your initialization code here (2A, 2B, 2C).
 
